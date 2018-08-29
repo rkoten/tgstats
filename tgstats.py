@@ -21,7 +21,7 @@ class TgStats:
     def parse_json(self, json_obj, exclude_chats):
         n_deleted = 0
         info = json_obj['personal_information']
-        self.full_name = info['first_name'] + (' ' + info['last_name']) if len(info['last_name']) > 0 else ''
+        self.full_name = info['first_name'] + ((' ' + info['last_name']) if len(info['last_name']) > 0 else '')
 
         def get_message_name(msg):
             if msg['type'] == 'message':
@@ -55,13 +55,21 @@ class TgStats:
 
         top_n = min(30, len(self.chats))
         x = range(top_n)
-        plt.bar(x, [len(chat.messages) for chat in self.chats[:top_n]])
+        y = [chat.n_total for chat in self.chats[:top_n]]
+        y_max = max(y)
+
+        plt.bar(x, y)
         plt.bar(x, [chat.n_outgoing for chat in self.chats[:top_n]], color='khaki')
         for i, chat in enumerate(self.chats[:top_n]):
-            out_percentage = chat.n_outgoing / len(chat.messages) * 100
-            text = ' %d. %s (%d, %.1f%% out)' % (i+1, chat.name, len(chat.messages), out_percentage)
-            prop = TgStats.get_bartext_props('top' if i > 0 else 'bottom')
-            plt.text(i, len(chat.messages), text, prop)
+            out_percentage = chat.n_outgoing / chat.n_total * 100
+            text = '%d. %s (%d, %.1f%% out)' % (i+1, chat.name[:21], chat.n_total, out_percentage)
+            if chat.n_total < y_max // 2:
+                prop = TgStats.get_bartext_props('top')
+                text_dy = y_max // 100
+            else:
+                prop = TgStats.get_bartext_props('bottom')
+                text_dy = - y_max // 200
+            plt.text(i, chat.n_total + text_dy, text, prop)
 
         plt.xlim(-1, top_n)
         plt.tick_params(axis='x', which='both', top=False, bottom=False, labelbottom=False)
