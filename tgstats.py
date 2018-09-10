@@ -32,6 +32,10 @@ class TgStats:
                 return None
 
         for json_chat in json_obj['chats']['list']:
+            try:
+                json_chat['name']
+            except KeyError:
+                json_chat['name'] = None
             name = json_chat['name']
             if type(name) is str and name in exclude_chats:
                 continue
@@ -95,7 +99,8 @@ class TgStats:
 
 
 def main():
-    tgstats = TgStats('/home/rkot/downloads/Telegram Desktop/DataExport_28_08_2018 (3)/result.json', exclude_chats=['КНУчат'])
+    tgstats = TgStats('/Users/smagolexandr/Downloads/result.json')
+    # tgstats = TgStats('/Users/smagolexandr/Downloads/result.json', exclude_chats=[])
     tgstats.render_stats()
 
 
