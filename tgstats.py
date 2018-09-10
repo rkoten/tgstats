@@ -99,8 +99,7 @@ class TgStats:
 
 
 def main():
-    tgstats = TgStats('/Users/smagolexandr/Downloads/result.json')
-    # tgstats = TgStats('/Users/smagolexandr/Downloads/result.json', exclude_chats=[])
+    tgstats = TgStats('/home/rkot/downloads/Telegram Desktop/DataExport_28_08_2018 (3)/result.json', exclude_chats=['КНУчат'])
     tgstats.render_stats()
 
 
