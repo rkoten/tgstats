@@ -1,6 +1,6 @@
 import json
-import os
 import sys
+from os.path import isfile
 from matplotlib import pyplot as plt
 
 from models import *
@@ -34,11 +34,7 @@ class TgStats:
                 return None
 
         for json_chat in json_obj['chats']['list']:
-            try:
-                json_chat['name']
-            except KeyError:
-                json_chat['name'] = None
-            name = json_chat['name']
+            name = json_chat['name'] if 'name' in json_chat.keys() else None
             if type(name) is str and name in exclude_chats:
                 continue
             if name is None:
@@ -102,15 +98,15 @@ class TgStats:
 
 def main():
     try:
-        fn = sys.argv[1]
+        filename = sys.argv[1]
     except IndexError:
-        fn = ''
+        filename = input('Enter exported json file path: ')
 
-    if os.path.exists(fn):
-        tgstats = TgStats(fn)
+    if isfile(filename):
+        tgstats = TgStats(filename)
         tgstats.render_stats()
     else:
-        print('Invalid path')
+        print('Invalid path.')
 
 
 if __name__ == '__main__':
