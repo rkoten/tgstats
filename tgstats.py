@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 from matplotlib import pyplot as plt
 
 from models import *
@@ -32,6 +34,10 @@ class TgStats:
                 return None
 
         for json_chat in json_obj['chats']['list']:
+            try:
+                json_chat['name']
+            except KeyError:
+                json_chat['name'] = None
             name = json_chat['name']
             if type(name) is str and name in exclude_chats:
                 continue
@@ -95,8 +101,16 @@ class TgStats:
 
 
 def main():
-    tgstats = TgStats('/home/rkot/downloads/Telegram Desktop/DataExport_28_08_2018 (3)/result.json', exclude_chats=['КНУчат'])
-    tgstats.render_stats()
+    try:
+        fn = sys.argv[1]
+    except IndexError:
+        fn = ''
+
+    if os.path.exists(fn):
+        tgstats = TgStats(fn)
+        tgstats.render_stats()
+    else:
+        print('Invalid path')
 
 
 if __name__ == '__main__':
