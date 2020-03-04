@@ -8,7 +8,8 @@ from collections import defaultdict
 class TgStats:
 
     class Message:
-        def __init__(self, date_str, is_outgoing, is_media):
+        def __init__(self, text, date_str, is_outgoing, is_media):
+            self.text = text
             self.date = dateutil.parser.parse(date_str)
             self.is_outgoing = is_outgoing
             self.is_media = is_media
@@ -42,26 +43,44 @@ class TgStats:
             else:
                 return None
 
-        self.chats = defaultdict(list)
+        def parse_message_text(text):
+            if type(text) is str:
+                return text
+            elif type(text) is list:
+                pieces = []
+                for item in text:
+                    if type(item) is str:
+                        pieces.append(item)
+                    elif type(item) is dict:
+                        # Interactive item (link, mention, phone, etc.)
+                        pieces.append(item['text'])
+                    else:
+                        raise TypeError('Message text sub-item has unexpected type.')
+                return ''.join(pieces)
+            else:
+                raise TypeError('Message text has unexpected type.')
+
+        self.chats = {}
         json_chats = json_obj['chats']['list']
         for i, json_chat in enumerate(json_chats):
             stdout.write(f'\rParsing chat {i+1}/{len(json_chats)}...')
             chat_name = json_chat['name'] if 'name' in json_chat.keys() else None
             if chat_name is None:
                 n_deleted += 1
-                chat_name = f'deleted {n_deleted}'
+                chat_name = f'Deleted {n_deleted}'
             chat = []
             for json_message in json_chat['messages']:
                 msg_name = get_message_name(json_message)
+                text = parse_message_text(json_message['text'])
                 is_out = msg_name == self.name
                 is_media = any(key in json_message.keys() for key in ('photo', 'media_type'))
                 if not is_out and msg_name is not None  \
                    and chat_name == msg_name.split()[0] \
                    and len(msg_name) > len(chat_name):
                     chat_name = msg_name
-                chat.append(self.Message(json_message['date'], is_out, is_media))
-            self.chats[chat_name].extend(chat)
-        stdout.write('\rParsing done.\n')
+                chat.append(self.Message(text, json_message['date'], is_out, is_media))
+            self.chats[chat_name] = chat
+        stdout.write('\x1b[2K\rParsing done.\n')
 
     def compute(self, top_n=30, exclude_chats=None):
         if exclude_chats is None:
