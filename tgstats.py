@@ -52,7 +52,7 @@ class TgStats:
                     if type(item) is str:
                         pieces.append(item)
                     elif type(item) is dict:
-                        # Interactive item (link, mention, phone, etc.)
+                        # Interactive item (link, mention, phone number, etc.)
                         pieces.append(item['text'])
                     else:
                         raise TypeError('Message text sub-item has unexpected type.')

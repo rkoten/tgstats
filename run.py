@@ -4,7 +4,7 @@ from os.path import isfile
 from tgstats import *
 
 
-def main():
+if __name__ == '__main__':
     try:
         filename = sys.argv[1]
     except IndexError:
@@ -16,7 +16,3 @@ def main():
         tgstats.render()
     else:
         print('Invalid path.')
-
-
-if __name__ == '__main__':
-    main()
