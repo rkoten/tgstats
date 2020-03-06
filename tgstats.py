@@ -3,22 +3,26 @@ from matplotlib import pyplot as plt
 from sys import stdout
 import dateutil.parser
 from collections import defaultdict
+from statistics import median
 
+STR_CLEAR_LINE = '\x1b[2K'
 
 class TgStats:
 
     class Message:
-        def __init__(self, text, date_str, is_outgoing, is_media):
+        def __init__(self, text, date_str, is_outgoing, is_media, has_actionables):
             self.text = text
             self.date = dateutil.parser.parse(date_str)
             self.is_outgoing = is_outgoing
             self.is_media = is_media
+            self.has_actionables = has_actionables
 
     class Stats:
-        def __init__(self, messages_total, messages_outgoing, name=None):
+        def __init__(self, messages_total, messages_outgoing, median_message_len=0, name=None):
             self.name = name
             self.messages_total = messages_total
             self.messages_outgoing = messages_outgoing
+            self.median_message_len = median_message_len
 
     def __init__(self, json_filename):
         self.chats = None
@@ -45,18 +49,20 @@ class TgStats:
 
         def parse_message_text(text):
             if type(text) is str:
-                return text
+                return text, False
             elif type(text) is list:
+                # If message text contains actionable elements (links, mentions, phone numbers, etc.),
+                # the message is then returned as list of pieces - str's for text and dict's for parsed actionables.
                 pieces = []
                 for item in text:
                     if type(item) is str:
                         pieces.append(item)
                     elif type(item) is dict:
-                        # Interactive item (link, mention, phone number, etc.)
+                        # Actionable item, take its raw text value.
                         pieces.append(item['text'])
                     else:
                         raise TypeError('Message text sub-item has unexpected type.')
-                return ''.join(pieces)
+                return ''.join(pieces), True
             else:
                 raise TypeError('Message text has unexpected type.')
 
@@ -67,20 +73,20 @@ class TgStats:
             chat_name = json_chat['name'] if 'name' in json_chat.keys() else None
             if chat_name is None:
                 n_deleted += 1
-                chat_name = f'Deleted {n_deleted}'
+                chat_name = f'Deleted account {n_deleted}'
             chat = []
             for json_message in json_chat['messages']:
                 msg_name = get_message_name(json_message)
-                text = parse_message_text(json_message['text'])
+                text, has_actionables = parse_message_text(json_message['text'])
                 is_out = msg_name == self.name
                 is_media = any(key in json_message.keys() for key in ('photo', 'media_type'))
                 if not is_out and msg_name is not None  \
                    and chat_name == msg_name.split()[0] \
                    and len(msg_name) > len(chat_name):
                     chat_name = msg_name
-                chat.append(self.Message(text, json_message['date'], is_out, is_media))
+                chat.append(self.Message(text, json_message['date'], is_out, is_media, has_actionables))
             self.chats[chat_name] = chat
-        stdout.write('\x1b[2K\rParsing done.\n')
+        stdout.write(STR_CLEAR_LINE + '\rParsing done.\n')
 
     def compute(self, top_n=30, exclude_chats=None):
         if exclude_chats is None:
@@ -88,18 +94,23 @@ class TgStats:
         self.stats_chats = []
         messages_total = 0
         messages_outgoing = 0
-        for chat_name in self.chats.keys():
+
+        for i, chat_name in enumerate(self.chats.keys()):
             if chat_name in exclude_chats:
                 continue
+            stdout.write(f'\rComputing stats for chat {i+1}/{len(self.chats)-len(exclude_chats)}...')
             chat = self.chats[chat_name]
             chat_msgs_total = len(chat)
             messages_total += chat_msgs_total
             chat_msgs_outgoing = len(list(filter(lambda m: m.is_outgoing, chat)))
             messages_outgoing += chat_msgs_outgoing
-            self.stats_chats.append(self.Stats(chat_msgs_total, chat_msgs_outgoing, chat_name))
+            median_message_len = median([len(m.text) for m in filter(lambda m: not m.has_actionables, chat)])
+            self.stats_chats.append(self.Stats(chat_msgs_total, chat_msgs_outgoing, median_message_len, chat_name))
         self.stats_total = self.Stats(messages_total, messages_outgoing)
-        self.stats_chats.sort(key=lambda s: s.messages_total, reverse=True)
+        stdout.write(STR_CLEAR_LINE + '\rComputation done.\n')
+
         top_n = min(top_n, len(self.chats))
+        self.stats_chats.sort(key=lambda s: s.messages_total, reverse=True)
         self.stats_chats = self.stats_chats[:top_n]
 
     def render(self):
