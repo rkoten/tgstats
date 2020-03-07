@@ -1,14 +1,12 @@
 # Telegram messaging stats
 
-## Usage:
+## Usage
 
-Execute command `tgstats/run.py path/to/telegram_data.json` OR just execute `run.py` and enter path to the exported JSON file manually.
+Execute `python3 tgstats/run.py /path/to/telegram_data/result.json` or execute `python3 tgstats/run.py` and then enter path to the exported JSON file.
 
 Make sure "Account information" and at least some fields under "Chat export settings" are checked while exporting Telegram data.
 Contacts list, media, active sessions and miscellaneous data are not necessary.
 
-## Example:
+## Example output
 
-![Example result](./example.png)
-
-(Chat names were redacted.)
+![Example output](./example.png)

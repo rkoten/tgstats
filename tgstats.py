@@ -139,7 +139,7 @@ class TgStats:
         for i, chat in enumerate(self.stats_chats):
             out_percentage = chat.messages_outgoing / chat.messages_total * 100
             total_percentage = chat.messages_total / self.stats_total.messages_total * 100
-            text = '%d. %s (%d / %.2f%% of all, %.1f%% out)' \
+            text = '%d. %s: %d / %.2f%% of all, %.1f%% out' \
                  % (i+1, chat.name[:20], chat.messages_total, total_percentage, out_percentage)
             if chat.messages_total < y_max // 2:
                 prop = TgStats.get_bartext_props('top')
