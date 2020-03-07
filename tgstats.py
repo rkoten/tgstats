@@ -10,9 +10,9 @@ STR_CLEAR_LINE = '\x1b[2K'
 class TgStats:
 
     class Message:
-        def __init__(self, text, date_str, is_outgoing, is_media, has_actionables):
+        def __init__(self, text, date, is_outgoing, is_media, has_actionables):
             self.text = text
-            self.date = dateutil.parser.parse(date_str)
+            self.date = date
             self.is_outgoing = is_outgoing
             self.is_media = is_media
             self.has_actionables = has_actionables
@@ -29,6 +29,7 @@ class TgStats:
         self.name = None
         self.stats_chats = None
         self.stats_total = None
+        self.date = dateutil.parser.parse('2000-01-01')
 
         with open(json_filename, encoding='utf-8') as file:
             exported_json = json.load(file)
@@ -68,23 +69,35 @@ class TgStats:
 
         self.chats = {}
         json_chats = json_obj['chats']['list']
+
         for i, json_chat in enumerate(json_chats):
             stdout.write(f'\rParsing chat {i+1}/{len(json_chats)}...')
+
+            # If chat account was deleted, the name key will be absent in JSON.
             chat_name = json_chat['name'] if 'name' in json_chat.keys() else None
             if chat_name is None:
                 n_deleted += 1
                 chat_name = f'Deleted account {n_deleted}'
+
             chat = []
             for json_message in json_chat['messages']:
-                msg_name = get_message_name(json_message)
+                # Name stored for an individual message is that of the sender.
+                # This way we can tell whether the message is incoming or outgoing.
+                # We can also use it for chat name as it's sometimes fuller.
+                message_name = get_message_name(json_message)
+                is_out = message_name == self.name
+                if not is_out and message_name is not None  \
+                   and chat_name == message_name.split()[0] \
+                   and len(message_name) > len(chat_name):
+                    chat_name = message_name
+
                 text, has_actionables = parse_message_text(json_message['text'])
-                is_out = msg_name == self.name
                 is_media = any(key in json_message.keys() for key in ('photo', 'media_type'))
-                if not is_out and msg_name is not None  \
-                   and chat_name == msg_name.split()[0] \
-                   and len(msg_name) > len(chat_name):
-                    chat_name = msg_name
-                chat.append(self.Message(text, json_message['date'], is_out, is_media, has_actionables))
+                date = dateutil.parser.parse(json_message['date'])
+                self.date = max(self.date, date)
+
+                chat.append(self.Message(text, date, is_out, is_media, has_actionables))
+
             self.chats[chat_name] = chat
         stdout.write(STR_CLEAR_LINE + '\rParsing done.\n')
 
@@ -115,7 +128,7 @@ class TgStats:
 
     def render(self):
         plt.figure()
-        plt.title(f'Total messages for {self.name}')
+        plt.title(f'Total messages for {self.name} as of {self.date.year}-{self.date.month:02d}-{self.date.day:02d}')
 
         x = range(len(self.stats_chats))
         y = [chat.messages_total for chat in self.stats_chats]
