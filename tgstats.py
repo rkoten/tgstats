@@ -18,11 +18,11 @@ class TgStats:
             self.has_actionables = has_actionables
 
     class Stats:
-        def __init__(self, messages_total, messages_outgoing, median_message_len=0, name=None):
+        def __init__(self, count_messages_total, count_messages_outgoing, median_message_length=0, name=None):
             self.name = name
-            self.messages_total = messages_total
-            self.messages_outgoing = messages_outgoing
-            self.median_message_len = median_message_len
+            self.count_messages_total = count_messages_total
+            self.count_messages_outgoing = count_messages_outgoing
+            self.median_message_length = median_message_length
 
     def __init__(self, json_filename):
         self.chats = None
@@ -35,16 +35,15 @@ class TgStats:
             exported_json = json.load(file)
         self.parse_json(exported_json)
 
-    def parse_json(self, json_obj):
-        n_deleted = 0
-        info = json_obj['personal_information']
+    def parse_json(self, json_object):
+        info = json_object['personal_information']
         self.name = info['first_name'] + ((' ' + info['last_name']) if len(info['last_name']) > 0 else '')
 
-        def get_message_name(msg):
-            if msg['type'] == 'message':
-                return msg['from']
-            elif msg['type'] == 'service':
-                return msg['actor']
+        def get_message_name(message):
+            if message['type'] == 'message':
+                return message['from']
+            elif message['type'] == 'service':
+                return message['actor']
             else:
                 return None
 
@@ -68,16 +67,17 @@ class TgStats:
                 raise TypeError('Message text has unexpected type.')
 
         self.chats = {}
-        json_chats = json_obj['chats']['list']
+        json_chats = json_object['chats']['list']
 
+        count_deleted = 0
         for i, json_chat in enumerate(json_chats):
             stdout.write(f'\rParsing chat {i+1}/{len(json_chats)}...')
 
             # If chat account was deleted, the name key will be absent in JSON.
             chat_name = json_chat['name'] if 'name' in json_chat.keys() else None
             if chat_name is None:
-                n_deleted += 1
-                chat_name = f'Deleted account {n_deleted}'
+                count_deleted += 1
+                chat_name = f'Deleted account {count_deleted}'
 
             chat = []
             for json_message in json_chat['messages']:
@@ -105,25 +105,26 @@ class TgStats:
         if exclude_chats is None:
             exclude_chats = []
         self.stats_chats = []
-        messages_total = 0
-        messages_outgoing = 0
+        count_messages_total = 0
+        count_messages_outgoing = 0
 
         for i, chat_name in enumerate(self.chats.keys()):
             if chat_name in exclude_chats:
                 continue
             stdout.write(f'\rComputing stats for chat {i+1}/{len(self.chats)-len(exclude_chats)}...')
             chat = self.chats[chat_name]
-            chat_msgs_total = len(chat)
-            messages_total += chat_msgs_total
-            chat_msgs_outgoing = len(list(filter(lambda m: m.is_outgoing, chat)))
-            messages_outgoing += chat_msgs_outgoing
-            median_message_len = median([len(m.text) for m in filter(lambda m: not m.has_actionables, chat)])
-            self.stats_chats.append(self.Stats(chat_msgs_total, chat_msgs_outgoing, median_message_len, chat_name))
-        self.stats_total = self.Stats(messages_total, messages_outgoing)
+            count_chat_messages_total = len(chat)
+            count_messages_total += count_chat_messages_total
+            count_chat_messages_out = len(list(filter(lambda m: m.is_outgoing, chat)))
+            count_messages_outgoing += count_chat_messages_out
+            messages_non_actionable = list(filter(lambda m: not m.has_actionables, chat))
+            median_message_length = median(len(m.text) for m in messages_non_actionable) if len(messages_non_actionable) > 0 else 0
+            self.stats_chats.append(self.Stats(count_chat_messages_total, count_chat_messages_out, median_message_length, chat_name))
+        self.stats_total = self.Stats(count_messages_total, count_messages_outgoing)
         stdout.write(STR_CLEAR_LINE + '\rComputation done.\n')
 
         top_n = min(top_n, len(self.chats))
-        self.stats_chats.sort(key=lambda s: s.messages_total, reverse=True)
+        self.stats_chats.sort(key=lambda s: s.count_messages_total, reverse=True)
         self.stats_chats = self.stats_chats[:top_n]
 
     def render(self):
@@ -131,23 +132,22 @@ class TgStats:
         plt.title(f'Total messages for {self.name} as of {self.date.year}-{self.date.month:02d}-{self.date.day:02d}')
 
         x = range(len(self.stats_chats))
-        y = [chat.messages_total for chat in self.stats_chats]
+        y = [chat.count_messages_total for chat in self.stats_chats]
         y_max = max(y)
 
         plt.bar(x, y)
-        plt.bar(x, [chat.messages_outgoing for chat in self.stats_chats], color='khaki')
+        plt.bar(x, [chat.count_messages_outgoing for chat in self.stats_chats], color='khaki')
         for i, chat in enumerate(self.stats_chats):
-            out_percentage = chat.messages_outgoing / chat.messages_total * 100
-            total_percentage = chat.messages_total / self.stats_total.messages_total * 100
-            text = '%d. %s: %d / %.2f%% of all, %.1f%% out' \
-                 % (i+1, chat.name[:20], chat.messages_total, total_percentage, out_percentage)
-            if chat.messages_total < y_max // 2:
+            out_percentage = chat.count_messages_outgoing / chat.count_messages_total * 100
+            total_percentage = chat.count_messages_total / self.stats_total.count_messages_total * 100
+            text = f'{i+1}. {chat.name[:20]}: {chat.count_messages_total} / {total_percentage:.2f}% of all, {out_percentage:.1f}% out'
+            if chat.count_messages_total < y_max // 2:
                 prop = TgStats.get_bartext_props('top')
                 text_dy = y_max // 100
             else:
                 prop = TgStats.get_bartext_props('bottom')
                 text_dy = - y_max // 200
-            plt.text(i, chat.messages_total + text_dy, text, prop)
+            plt.text(i, chat.count_messages_total + text_dy, text, prop)
 
         plt.xlim(-1, len(x))
         plt.tick_params(axis='x', which='both', top=False, bottom=False, labelbottom=False)
