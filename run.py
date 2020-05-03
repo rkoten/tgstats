@@ -1,17 +1,18 @@
 import sys
-from os.path import isfile
+from os.path import isfile, expanduser
 
 from tgstats import *
 
 
 if __name__ == '__main__':
     try:
-        filename = sys.argv[1]
+        path = sys.argv[1]
     except IndexError:
-        filename = input('Enter exported json file path: ')
+        path = input('Enter exported json file path: ')
 
-    if isfile(filename):
-        tgstats = TgStats(filename)
+    path = expanduser(path)
+    if isfile(path):
+        tgstats = TgStats(path)
         tgstats.compute()
         tgstats.render()
     else:
