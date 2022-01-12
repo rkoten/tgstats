@@ -2,6 +2,7 @@ import json
 from matplotlib import pyplot as plt
 from sys import stdout
 import dateutil.parser
+from datetime import datetime
 from collections import defaultdict
 from statistics import median
 
@@ -18,8 +19,9 @@ class TgStats:
             self.has_actionables = has_actionables
 
     class Stats:
-        def __init__(self, count_messages_total, count_messages_outgoing, median_message_length=0, name=None):
+        def __init__(self, count_messages_total, count_messages_outgoing, timebuckets={}, median_message_length=0, name=None):
             self.name = name
+            self.timebuckets = timebuckets
             self.count_messages_total = count_messages_total
             self.count_messages_outgoing = count_messages_outgoing
             self.median_message_length = median_message_length
@@ -92,13 +94,15 @@ class TgStats:
                     chat_name = message_name
 
                 text, has_actionables = parse_message_text(json_message['text'])
-                is_media = any(key in json_message.keys() for key in ('photo', 'media_type'))
+                is_media = any(key in json_message.keys() for key in ('photo', 'media_type', 'mime_type'))
+                if is_media:
+                    continue
                 date = dateutil.parser.parse(json_message['date'])
                 self.date = max(self.date, date)
 
                 chat.append(self.Message(text, date, is_out, is_media, has_actionables))
 
-            self.chats[chat_name] = chat
+            self.chats[chat_name] = sorted(chat, key=lambda x: x.date)
         stdout.write(STR_CLEAR_LINE + '\rParsing done.\n')
 
     def compute(self, top_n=30, exclude_chats=None):
@@ -119,7 +123,26 @@ class TgStats:
             count_messages_outgoing += count_chat_messages_out
             messages_non_actionable = list(filter(lambda m: not m.has_actionables, chat))
             median_message_length = median(len(m.text) for m in messages_non_actionable) if len(messages_non_actionable) > 0 else 0
-            self.stats_chats.append(self.Stats(count_chat_messages_total, count_chat_messages_out, median_message_length, chat_name))
+
+            # curbucket = chat[0].date.timestamp()
+            curbucket = dateutil.parser.parse('2018-01-01').timestamp()
+            timebuckets = {}
+            timebuckets[curbucket] = 0
+            for message in chat:
+                if message.date.timestamp() < curbucket:
+                    continue
+                while curbucket + 2592000 < message.date.timestamp():
+                    curbucket += 2592000
+                    timebuckets[curbucket] = 0
+                timebuckets[curbucket] += 1
+
+            self.stats_chats.append(self.Stats(
+                count_chat_messages_total,
+                count_chat_messages_out,
+                timebuckets,
+                median_message_length,
+                chat_name,
+            ))
         self.stats_total = self.Stats(count_messages_total, count_messages_outgoing)
         stdout.write(STR_CLEAR_LINE + '\rComputation done.\n')
 
@@ -129,25 +152,21 @@ class TgStats:
 
     def render(self):
         plt.figure()
-        plt.title(f'Total messages for {self.name} as of {self.date.year}-{self.date.month:02d}-{self.date.day:02d}')
+        # plt.title(f'Total messages for {self.name} as of {self.date.year}-{self.date.month:02d}-{self.date.day:02d}')
 
-        x = range(len(self.stats_chats))
-        y = [chat.count_messages_total for chat in self.stats_chats]
+        x = range(len(self.stats_chats[0].timebuckets))
+        y = [bucket for bucket in self.stats_chats[0].timebuckets.values()]
         y_max = max(y)
 
         plt.bar(x, y)
-        plt.bar(x, [chat.count_messages_outgoing for chat in self.stats_chats], color='khaki')
-        for i, chat in enumerate(self.stats_chats):
-            out_percentage = chat.count_messages_outgoing / chat.count_messages_total * 100
-            total_percentage = chat.count_messages_total / self.stats_total.count_messages_total * 100
-            text = f'{i+1}. {chat.name[:20]}: {chat.count_messages_total} / {total_percentage:.2f}% of all, {out_percentage:.1f}% out'
-            if chat.count_messages_total < y_max // 2:
-                prop = TgStats.get_bartext_props('top')
-                text_dy = y_max // 100
-            else:
-                prop = TgStats.get_bartext_props('bottom')
-                text_dy = - y_max // 200
-            plt.text(i, chat.count_messages_total + text_dy, text, prop)
+        for i, time in enumerate(self.stats_chats[0].timebuckets):
+            # if i % 2 != 0:
+            #     continue
+            bucket = self.stats_chats[0].timebuckets[time]
+            text = f'{datetime.fromtimestamp(time).date()}: {bucket} messages'
+            prop = TgStats.get_bartext_props('top')
+            text_dy = y_max // 100
+            plt.text(i, bucket + text_dy, text, prop)
 
         plt.xlim(-1, len(x))
         plt.tick_params(axis='x', which='both', top=False, bottom=False, labelbottom=False)
@@ -160,13 +179,13 @@ class TgStats:
             'top': {
                 'ha': 'center',
                 'va': 'bottom',
-                'size': 8.25,
+                'size': 8,
                 'rotation': 90
             },
             'bottom': {
                 'ha': 'center',
                 'va': 'top',
-                'size': 8.25,
+                'size': 8,
                 'rotation': 90
             }
         }[prop_type]
