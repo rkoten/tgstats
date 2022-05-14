@@ -152,7 +152,7 @@ class TgStats:
         plt.xlim(-1, len(x))
         plt.tick_params(axis='x', which='both', top=False, bottom=False, labelbottom=False)
         plt.tick_params(axis='y', which='both', left=True, right=False)
-        plt.show()
+        plt.savefig(f'{self.date.year}{self.date.month:02d}{self.date.day:02d}.png', dpi=200)
 
     @staticmethod
     def get_bartext_props(prop_type):
