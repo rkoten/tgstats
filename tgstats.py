@@ -73,6 +73,7 @@ class TgStats:
         for i, json_chat in enumerate(json_chats):
             stdout.write(f'\rParsing chat {i+1}/{len(json_chats)}...')
 
+            chat_id = json_chat['id']
             # If chat account was deleted, the name key will be absent in JSON.
             chat_name = json_chat['name'] if 'name' in json_chat.keys() else None
             if chat_name is None:
@@ -98,7 +99,7 @@ class TgStats:
 
                 chat.append(self.Message(text, date, is_out, is_media, has_actionables))
 
-            self.chats[chat_name] = chat
+            self.chats[(chat_id, chat_name)] = chat
         stdout.write(STR_CLEAR_LINE + '\rParsing done.\n')
 
     def compute(self, top_n=30, exclude_chats=None):
@@ -108,11 +109,10 @@ class TgStats:
         count_messages_total = 0
         count_messages_outgoing = 0
 
-        for i, chat_name in enumerate(self.chats.keys()):
+        for i, ((_, chat_name), chat) in enumerate(self.chats.items()):
             if chat_name in exclude_chats:
                 continue
             stdout.write(f'\rComputing stats for chat {i+1}/{len(self.chats)-len(exclude_chats)}...')
-            chat = self.chats[chat_name]
             count_chat_messages_total = len(chat)
             count_messages_total += count_chat_messages_total
             count_chat_messages_out = len(list(filter(lambda m: m.is_outgoing, chat)))
